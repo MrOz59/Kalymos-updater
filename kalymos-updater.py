@@ -11,6 +11,7 @@ import subprocess
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime
+import sys
 
 def is_application_running(executable_name):
     """
@@ -78,7 +79,7 @@ def load_config(ini_file):
     """
     if not os.path.exists(ini_file):
         create_base_config(ini_file)
-        exit(1)  # Exit the program after creating the base configuration file
+        sys.exit(1)  # Exit the program after creating the base configuration file
 
     config = configparser.ConfigParser()
     config.read(ini_file)
@@ -219,6 +220,19 @@ def launch_application(executable):
     except Exception as e:
         print(f"Failed to launch {executable}: {e}")
 
+def prompt_for_update():
+    """
+    Prompts the user with a message box to ask if they want to update now.
+
+    Returns:
+        bool: True if the user wants to update, False otherwise.
+    """
+    root = tk.Tk()
+    root.withdraw()  # Hide the main Tkinter window
+    response = messagebox.askyesno("Update Available", "A new version is available. Would you like to update now?")
+    root.destroy()  # Close the Tkinter window
+    return response
+
 def main():
     """
     Main function to check for updates, download and verify them, and replace the current version with the updated one.
@@ -228,50 +242,36 @@ def main():
     owner, repo, current_version, main_executable = load_config(ini_file)
 
     if is_application_running(main_executable):
-        close_application(main_executable)
+        if not close_application(main_executable):
+            print(f"Failed to close {main_executable}. Exiting.")
+            sys.exit(1)
         print(f"Waiting for {main_executable} to close...")
         time.sleep(20)  # Wait 20 seconds for the application to fully close
 
     new_version = check_for_updates(owner, repo, current_version)
     if new_version:
-        file_url = f"https://github.com/{owner}/{repo}/releases/download/{new_version}/update.zip"
-        downloaded_file = 'update.zip'
-        
-        print("Creating a backup of the current version...")
-        root_folder = os.getcwd()
-        create_backup(root_folder)
-        
-        print("Downloading new version...")
-        download_file(file_url, downloaded_file)
-        
-        print("Calculating SHA-256 of the downloaded file...")
-        downloaded_sha256 = calculate_sha256(downloaded_file)
-        
-        print("Verifying file integrity...")
-        sha256_url = f"https://github.com/{owner}/{repo}/releases/download/{new_version}/update.zip.sha256"
-        response = requests.get(sha256_url)
-        response.raise_for_status()
-        remote_sha256 = response.text.strip()
-
-        if downloaded_sha256 == remote_sha256:
-            print("SHA-256 hash verified successfully.")
-            
-            print("Extracting the new version...")
-            temp_dir = tempfile.mkdtemp()
-            extract_zip_file(downloaded_file, temp_dir)
-            
-            print("Replacing files with the new version...")
-            replace_files(temp_dir, root_folder)
-            
-            print("Removing the ZIP file...")
-            os.remove(downloaded_file)
-            
-            print("Launching the main application...")
+        if not prompt_for_update():
+            print("Update deferred by user.")
+            # Launch the main application
             launch_application(main_executable)
-        else:
-            print("File integrity verification failed!")
-    else:
-        print("No new version available.")
+            return
 
-if __name__ == '__main__':
+        # Create a backup of the current application folder
+        root_folder = os.path.dirname(os.path.abspath(__file__))
+        create_backup(root_folder)
+
+        # Download and replace application files
+        zip_file = os.path.join(tempfile.gettempdir(), f"{repo}_{new_version}.zip")
+        download_file(f"https://github.com/{owner}/{repo}/releases/download/{new_version}/{repo}_{new_version}.zip", zip_file)
+
+        # Extract and replace files
+        temp_folder = os.path.join(tempfile.gettempdir(), 'new_version')
+        os.makedirs(temp_folder, exist_ok=True)
+        extract_zip_file(zip_file, temp_folder)
+        replace_files(temp_folder, root_folder)
+
+        # Launch the updated application
+        launch_application(main_executable)
+
+if __name__ == "__main__":
     main()

@@ -1,11 +1,13 @@
-import configparser
 import os
 import requests
 import subprocess
+import configparser
 
 def load_config(ini_file):
     """
-    Loads the updater version from the ini file.
+    Loads the configuration from the ini file.
+    Returns:
+        tuple: (updater_version, version)
     """
     if not os.path.exists(ini_file):
         raise FileNotFoundError(f"Configuration file '{ini_file}' not found.")
@@ -13,74 +15,87 @@ def load_config(ini_file):
     config = configparser.ConfigParser()
     config.read(ini_file)
     updater_version = config['config']['updater_version']
-    return updater_version
+    version = config['config']['version']
+    return updater_version, version
 
-def check_for_updater_update(updater_version):
+def download_updater(updater_version, filename):
     """
-    Checks the GitHub API for a new version of the updater.
+    Downloads the updater executable.
     """
-    url = "https://api.github.com/repos/MrOz59/Kalymos-Updater/releases/latest"
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        
-        latest_version = response.json()['tag_name']
-        
-        if latest_version > updater_version:
-            print(f"New updater version available: {latest_version}")
-            return latest_version
-        else:
-            print("You are using the latest updater version.")
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred while checking for updates: {e}")
-        return None
+    updater_url_template = 'https://github.com/MrOz59/Kalymos-Updater/releases/download/{version}/{filename}'
+    updater_url = updater_url_template.format(version=updater_version, filename=filename)
 
-def download_file(url, destination):
-    """
-    Downloads a file from the given URL to the specified destination.
-    """
     try:
-        response = requests.get(url, stream=True)
+        response = requests.get(updater_url, stream=True)
         response.raise_for_status()
-        with open(destination, 'wb') as file:
-            for chunk in response.iter_content(1024):
+        
+        with open(filename, 'wb') as file:
+            for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        print(f"Downloaded file from {url} to {destination}")
-    except requests.exceptions.RequestException as e:
+        print(f"Downloaded {filename}.")
+        
+    except requests.HTTPError as e:
         print(f"An error occurred while downloading the file: {e}")
+        return False
 
-def ensure_updater(updater_version,skip_update_check):
+    return True
+
+def ensure_updater(updater_version, skip_update_check=False):
     """
-    Ensures the updater executable is present and up-to-date.
+    Ensure the updater executable is present and up-to-date.
+    Downloads the updater if it is missing or out-of-date.
+    Returns:
+        bool: True if an update was needed and executed, False otherwise.
     """
-    updater_executable = 'kalymos-updater.exe'
-    updater_url = f"https://github.com/MrOz59/Kalymos-Updater/releases/download/{updater_version}/kalymos-updater.exe"
-    
-    if skip_update_check:
-        # Only check if the updater exists and download if not present
-        if not os.path.isfile(updater_executable):
-            print("Updater executable not found. Downloading...")
-            download_file(updater_url, updater_executable)
-    else:
-        # Check for an update and download if necessary
-        if not os.path.isfile(updater_executable):
-            print("Updater executable not found. Downloading...")
-            download_file(updater_url, updater_executable)
+    updater_filename = 'kalymos-updater.exe'
+
+    if os.path.exists(updater_filename):
+        if skip_update_check:
+            print(f"{updater_filename} found. Skipping update check as per configuration.")
+            print("Running the updater...")
+            subprocess.run([updater_filename])  # No need for shell=True
+            return False  # No need to download again
         else:
-            print(f"Updater executable '{updater_executable}' found.")
-            
-            new_version = check_for_updater_update(updater_version)
-            if new_version:
-                new_updater_url = f"https://github.com/MrOz59/Kalymos-Updater/releases/download/{new_version}/kalymos-updater.exe"
-                print("Downloading new updater...")
-                download_file(new_updater_url, updater_executable)
-                print(f"Updater updated to version {new_version}")
+            # Check for updates (not implemented)
+            print(f"{updater_filename} found. Checking for updates...")
+            # Example placeholder for update checking logic
+            # Assume checking the latest version from a file or API
+            latest_version = 'latest'  # Placeholder value; adjust accordingly
+            if updater_version != latest_version:
+                print("Update available. Downloading the latest version...")
+                download_updater(latest_version, updater_filename)
+                print("Running the updated updater...")
+                subprocess.run([updater_filename])  # No need for shell=True
+                return True
+            else:
+                print("Updater is up-to-date.")
+                return False
+    else:
+        print(f"{updater_filename} not found. Downloading...")
 
-    # Run the updater as administrator
-    try:
-        subprocess.run(['runas', '/user:Administrator', updater_executable], check=True)
-    except Exception as e:
-        print(f"Failed to run updater as administrator: {e}")
+        # Download the updater for the specified version in config.ini
+        if not download_updater(updater_version, updater_filename):
+            print("Failed to download the updater.")
+            return False
 
+        # Execute the updater
+        print("Running the updater...")
+        subprocess.run([updater_filename])  # No need for shell=True
+        return True
+
+def main():
+    """
+    Main function to check for updates and handle the updater executable.
+    """
+    ini_file = 'config.ini'
+    updater_version, _ = load_config(ini_file)
+
+    # Ensure the updater is present and up-to-date
+    update_needed = ensure_updater(updater_version, skip_update_check=False)
+    if update_needed:
+        print("Updater was updated and executed.")
+    else:
+        print("No update needed or an error occurred during update.")
+
+if __name__ == "__main__":
+    main()
