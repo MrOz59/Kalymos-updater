@@ -207,15 +207,19 @@ def replace_files(source_folder, destination_folder):
             shutil.move(src_file, dst_file)
     print(f"Files from {source_folder} have replaced files in {destination_folder}")
 
-def launch_application(executable):
+def launch_application(executable, updated):
     """
     Launches the main application executable.
 
     Args:
         executable (str): The name of the main executable to launch.
+        updated (bool): Indicates if the application has been updated.
     """
     try:
-        subprocess.Popen([executable])
+        if updated:
+            subprocess.Popen([executable, '--updated'])
+        else:
+            subprocess.Popen([executable])
         print(f"Launched {executable}")
     except Exception as e:
         print(f"Failed to launch {executable}: {e}")
@@ -241,37 +245,35 @@ def main():
     ini_file = 'config.ini'
     owner, repo, current_version, main_executable = load_config(ini_file)
 
+    # Check for updates
+    latest_version = check_for_updates(owner, repo, current_version)
+    if not latest_version:
+        sys.exit(0)
+
+    # Confirm with user
+    if not prompt_for_update():
+        print("Update cancelled.")
+        launch_application(main_executable, True)
+        sys.exit(0)
+
+    # Close application if running
     if is_application_running(main_executable):
-        if not close_application(main_executable):
-            print(f"Failed to close {main_executable}. Exiting.")
-            sys.exit(1)
-        print(f"Waiting for {main_executable} to close...")
-        time.sleep(20)  # Wait 20 seconds for the application to fully close
+        close_application(main_executable)
 
-    new_version = check_for_updates(owner, repo, current_version)
-    if new_version:
-        if not prompt_for_update():
-            print("Update deferred by user.")
-            # Launch the main application
-            launch_application(main_executable)
-            return
+    # Create backup
+    create_backup('.')
 
-        # Create a backup of the current application folder
-        root_folder = os.path.dirname(os.path.abspath(__file__))
-        create_backup(root_folder)
+    # Download the update
+    download_url = f"https://github.com/{owner}/{repo}/releases/download/{latest_version}/update.zip"
+    update_zip_path = os.path.join('.', 'update.zip')
+    download_file(download_url, update_zip_path)
 
-        # Download and replace application files
-        zip_file = os.path.join(tempfile.gettempdir(), f"{repo}_{new_version}.zip")
-        download_file(f"https://github.com/{owner}/{repo}/releases/download/{new_version}/{repo}_{new_version}.zip", zip_file)
+    # Extract the update to the root folder
+    extract_zip_file(update_zip_path, '.')
 
-        # Extract and replace files
-        temp_folder = os.path.join(tempfile.gettempdir(), 'new_version')
-        os.makedirs(temp_folder, exist_ok=True)
-        extract_zip_file(zip_file, temp_folder)
-        replace_files(temp_folder, root_folder)
+    # Launch the application with --updated argument
+    launch_application(main_executable, True)
 
-        # Launch the updated application
-        launch_application(main_executable)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
