@@ -3,8 +3,6 @@ import os
 import requests
 import subprocess
 
-skip_update_check=False # if True, the application will not install updates for Kalymos-Updater
-
 def load_config(ini_file):
     """
     Loads the updater version from the ini file.
@@ -53,7 +51,7 @@ def download_file(url, destination):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while downloading the file: {e}")
 
-def ensure_updater(updater_version):
+def ensure_updater(updater_version,skip_update_check):
     """
     Ensures the updater executable is present and up-to-date.
     """

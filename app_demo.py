@@ -13,9 +13,9 @@ def run_demo_app():
     except FileNotFoundError as e:
         print(e)
         return
-
+    skip_update_check=False # if True, the application will not install updates for Kalymos-Updater
     # Ensure the updater is present and up-to-date
-    ensure_updater(updater_version)
+    ensure_updater(updater_version,skip_update_check)
     
     # Launch the main demo application
     root = Tk()
