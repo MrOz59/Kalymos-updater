@@ -1,37 +1,43 @@
+---
+
 # Kalymos Updater
 
 ## Overview
 
-The Kalymos Updater is designed to manage updates for the Kalymos application. It handles checking for new versions, downloading updates, and ensuring that the application is up-to-date. This repository includes the updater script as well as a demo application to demonstrate how the updater works and how it can be integrated into other projects.
+The Kalymos Updater is designed to manage updates for applications. It handles checking for new versions, downloading updates, and applying them. This repository includes the updater script and a demo application to illustrate how to integrate the updater into other projects.
 
 ## Updater Functionality
 
 ### Features
 
-- **Check for Updates**: The updater checks for new versions of itself by querying the GitHub API.
-- **Download Updates**: If a new version is available, the updater downloads the latest version.
-- **Run as Administrator**: The updater script is designed to be run with administrator privileges to ensure proper installation.
+- **Check for Updates**: Uses the GitHub API to check for new versions of the updater.
+- **Download Updates**: Downloads the update if a newer version is found.
+- **Execute Updater**: Runs the updated executable with administrator privileges.
 
-### How It Works
+### Update Files
 
-1. **Check for Updates**: The updater queries the GitHub API to get the latest release information. It compares the latest version with the current version specified in the `config.ini` file.
-2. **Download and Replace**: If a newer version is found or if the updater executable is missing, it downloads the latest version from GitHub and replaces the existing executable.
-3. **Execute Updater**: The updater script then executes the new updater executable with administrator privileges to perform the update.
+- **Update ZIP**: The new version of the updater should be posted as `update.zip`.
+- **SHA-256 Checksum**: The `update.zip.sha256` file contains the SHA-256 hash of the `update.zip` to verify its integrity.
 
 ## Demo Application
 
 ### Purpose
 
-The demo application serves as a simple example to show how the Kalymos Updater can be used. It verifies if an update is available, handles downloading the updater if necessary, and launches the updater.
+The demo application shows how to integrate the Kalymos Updater into another project. It demonstrates how to:
+
+1. Retrieve the updater version from `config.ini`.
+2. Check for updates to the updater.
+3. Download the updater if it’s missing or out-of-date.
+4. Launch the updater to perform the update.
 
 ### How to Run
 
-1. Ensure you have the `config.ini` file with the correct configuration.
+1. Ensure you have a `config.ini` file with the correct configuration.
 2. Run the demo application script: `python demo_app.py`.
 
 ### Configuration
 
-The `config.ini` file should have the following structure:
+The `config.ini` file should be structured as follows:
 
 ```ini
 [config]
@@ -44,22 +50,20 @@ updater_version = 1.0.0
 
 ## Integration with Other Applications
 
-### Overview
+To integrate the Kalymos Updater into your application:
 
-To integrate the Kalymos Updater into another application, follow these steps:
-
-1. **Include the Updater Script**: Add the `updater_manager.py` script to your project.
-2. **Load Configuration**: Use the `load_config` function to read the `config.ini` file and get the current updater version.
-3. **Check and Ensure Updater**: Call the `ensure_updater` function to check for updates and ensure that the updater executable is present. Pass `skip_update_check=True` if you only want to check for the existence of the updater without verifying updates.
+1. **Include the Updater Script**: Add the `update_manager.py` script to your project. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
+2. **Load Configuration**: Use `load_config` to read the `config.ini` file and get the current updater version.
+3. **Check and Ensure Updater**: Call `ensure_updater` to check for updates and ensure the updater executable is present. Set `skip_update_check=True` if you only want to verify the existence of the updater without checking for updates.
 4. **Run the Updater**: The `ensure_updater` function will handle running the updater with administrator privileges if needed.
 
 ### Example Integration
 
-Here’s an example of how to integrate the updater into your application:
+Here’s a basic example of integrating the updater into your application:
 
 ```python
 import configparser
-from updater_manager import load_config, ensure_updater
+from update_manager import load_config, ensure_updater
 
 def run_my_app():
     # Path to the configuration file
@@ -86,11 +90,18 @@ if __name__ == '__main__':
 
 ### Note
 
-- The updater uses the GitHub API to check for updates. Ensure that the API URL is correctly set to your repository’s release endpoint.
-- The updater should be run with sufficient privileges to replace its own executable.
+- The `update_manager.py` script is separate from `kalymos-updater.exe` and should be integrated into the application being updated.
+- Use the GitHub API to check for updates. Ensure the API URL is correctly set for your repository’s release endpoint.
+- The updater script should be executed with sufficient privileges to replace its own executable.
 
 ## License
 
-This project is licensed under a custom License. See the [LICENSE](LICENSE) file for details.
+The Kalymos Updater is licensed under a custom license with the following key points:
+
+- **No Commercial Use**: The software cannot be sold, rented, or used for commercial purposes without explicit written permission.
+- **Source Code Restrictions**: The source code or parts of it cannot be copied or used without permission. Modifications through collaboration (e.g., pull requests) on GitHub are allowed.
+- **Personal Use**: Allowed for personal projects. For use in commercial software, explicit written permission is required.
+
+For the full license terms, please refer to the [LICENSE](LICENSE) file.
 
 ---
