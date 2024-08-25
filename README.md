@@ -45,7 +45,7 @@ owner = MrOz59
 repo = kalymos
 version = v1.4.1
 main_executable = kalymos.exe
-updater_version = 1.0.0
+updater_version = v1.1.0
 ```
 
 ## Integration with Other Applications
@@ -54,8 +54,7 @@ To integrate the Kalymos Updater into your application:
 
 1. **Include the Updater Script**: Add the `update_manager.py` script to your project. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
 2. **Load Configuration**: Use `load_config` to read the `config.ini` file and get the current updater version.
-3. **Check and Ensure Updater**: Call `ensure_updater` to check for updates and ensure the updater executable is present. Set `skip_update_check=True` if you only want to verify the existence of the updater without checking for updates.
-4. **Run the Updater**: The `ensure_updater` function will handle running the updater with administrator privileges if needed.
+3. **Check and Ensure Updater**: to check for updates and ensure the updater executable is present. `Set skip_update_check=True` if you want to prevent the Kalymos Updater from checking for updates itself. This means that the updater will not look for new versions of itself, but it will still ensure that the updater executable exists and is up-to-date for the main application to receive updates.
 
 ### Example Integration
 
@@ -66,16 +65,24 @@ import configparser
 from update_manager import load_config, ensure_updater
 
 def run_my_app():
+    """
+    Runs the main application and integrates the Kalymos Updater.
+
+    This function performs the following steps:
+    1. Loads the configuration from 'config.ini' to get the updater version.
+    2. Ensures the Kalymos Updater is present and up-to-date.
+    3. Launches the main application.
+    """
     # Path to the configuration file
     ini_file = 'config.ini'
     
     try:
         updater_version = load_config(ini_file)
     except FileNotFoundError as e:
-        print(e)
+        print(f"Error: {e}")
         return
     
-    # Set this to True to skip the update check and only check if the updater executable exists
+    # Set this to True to skip the update check for the Kalymos Updater itself
     skip_update_check = False
     
     # Ensure the updater is present and up-to-date
@@ -86,6 +93,7 @@ def run_my_app():
 
 if __name__ == '__main__':
     run_my_app()
+
 ```
 
 ### Note
