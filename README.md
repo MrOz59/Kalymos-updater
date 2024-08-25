@@ -10,13 +10,13 @@ The Kalymos Updater is designed to manage updates for applications. It handles c
 
 ### Features
 
-- **Check for Updates**: Uses the GitHub API to check for new versions of the updater.
+- **Check for Updates**: Uses the GitHub API to check for new versions of the updater and the main app.
 - **Download Updates**: Downloads the update if a newer version is found.
 - **Execute Updater**: Runs the updated executable with administrator privileges.
 
 ### Update Files
 
-- **Update ZIP**: The new version of the updater should be posted as `update.zip`.
+- **Update ZIP**: The new version of the main app should be posted as `update.zip`.
 - **SHA-256 Checksum**: The `update.zip.sha256` file contains the SHA-256 hash of the `update.zip` to verify its integrity.
 
 ## Demo Application
