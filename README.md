@@ -1,5 +1,3 @@
----
-
 # Kalymos Updater
 
 ## Overview
@@ -48,6 +46,22 @@ main_executable = kalymos.exe
 updater_version = v1.1.0
 ```
 
+### Handling the `--updated` Argument
+
+When running the demo application, you can use the `--updated` argument to skip the update checks. Here’s how it affects the behavior of the demo application:
+
+- **Without `--updated` Argument**: The demo application will check for updates to both the Kalymos Updater and the main application. If updates are needed, it will notify the user and stop further execution until the updater has run and the application is restarted.
+
+- **With `--updated` Argument**: The demo application will skip the update checks for both the Kalymos Updater and the main application. This argument indicates that the application has already been updated, or that the update was canceled. The application will proceed without performing any update checks.
+
+To run the demo application with the `--updated` argument, use the following command:
+
+```bash
+python demo_app.py --updated
+```
+
+This argument is used by the Kalymos Updater to signal to the main application whether the update has already occurred or if the update process was canceled. The application can modify this logic as needed to fit different use cases.
+
 ## Integration with Other Applications
 
 To integrate the Kalymos Updater into your application:
@@ -62,6 +76,7 @@ Here’s a basic example of integrating the updater into your application:
 
 ```python
 import configparser
+import argparse
 from update_manager import load_config, ensure_updater
 
 def run_my_app():
@@ -77,23 +92,31 @@ def run_my_app():
     ini_file = 'config.ini'
     
     try:
-        updater_version = load_config(ini_file)
+        updater_version, version = load_config(ini_file)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return
     
-    # Set this to True to skip the update check for the Kalymos Updater itself
-    skip_update_check = False
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='My Application')
+    parser.add_argument('--updated', action='store_true', help='Indicates that the application has been updated.')
+    args = parser.parse_args()
     
-    # Ensure the updater is present and up-to-date
-    ensure_updater(updater_version, skip_update_check=skip_update_check)
+    # Check if the --updated argument is passed
+    if not args.updated:
+        # Skip update check if --updated is not passed
+        updater_needed = ensure_updater(updater_version, skip_update_check=False)
+        
+        if updater_needed:
+            # Notify the user that an update is needed and stop further execution
+            print("Updater needed. Please restart the application after the updater has run.")
+            return  # Stop further execution
     
     # Launch your main application here
     print("Launching the main application...")
 
 if __name__ == '__main__':
     run_my_app()
-
 ```
 
 ### Note
@@ -111,5 +134,3 @@ The Kalymos Updater is licensed under a custom license with the following key po
 - **Personal Use**: Allowed for personal projects. For use in commercial software, explicit written permission is required.
 
 For the full license terms, please refer to the [LICENSE](LICENSE) file.
-
----
