@@ -91,6 +91,6 @@ if __name__ == '__main__':
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under a custom License. See the [LICENSE](LICENSE) file for details.
 
 ---
