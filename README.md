@@ -1,7 +1,3 @@
-Sure! Here's a `README.md` file for your GitHub repository, explaining the updater functionality, the demo app, and integration instructions for other apps:
-
----
-
 # Kalymos Updater
 
 ## Overview
