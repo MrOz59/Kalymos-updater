@@ -48,11 +48,11 @@ updater_version = v1.1.0
 
 ### Handling the `--updated` Argument
 
-When running the demo application, you can use the `--updated` argument to skip the update checks. Here’s how it affects the behavior of the demo application:
+When running the demo application or your application, you can use the `--updated` argument to skip the update checks. Here's how this affects the demo app's behavior:
 
-- **Without `--updated` Argument**: The demo application will check for updates to both the Kalymos Updater and the main application. If updates are needed, it will notify the user and stop further execution until the updater has run and the application is restarted.
+- **Without `--updated` Argument**: The demo app or your app will check for updates for Kalymos Updater and the main app. If updates are needed, it will notify the user and stop running until the updater runs and the application is restarted.
 
-- **With `--updated` Argument**: The demo application will skip the update checks for both the Kalymos Updater and the main application. This argument indicates that the application has already been updated, or that the update was canceled. The application will proceed without performing any update checks.
+- **With `--updated` Argument**: The demo application or your app will skip the update checks for both the Kalymos Updater and the main application. This argument indicates that the application has already been updated, or that the update was canceled. The application will proceed without performing any update checks.
 
 To run the demo application with the `--updated` argument, use the following command:
 
@@ -60,7 +60,7 @@ To run the demo application with the `--updated` argument, use the following com
 python demo_app.py --updated
 ```
 
-This argument is used by the Kalymos Updater to signal to the main application whether the update has already occurred or if the update process was canceled. The application can modify this logic as needed to fit different use cases.
+This argument is used by the Kalymos Updater to signal to the main application whether the update has already occurred or if the update process was canceled. You can modify this logic as needed to suit different use cases.
 
 ## Integration with Other Applications
 
