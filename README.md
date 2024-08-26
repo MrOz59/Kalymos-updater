@@ -66,7 +66,7 @@ This argument is used by the Kalymos Updater to signal to the main application w
 
 To integrate the Kalymos Updater into your application:
 
-1. **Include the Updater Script**: Add the `update_manager.py` script to your project. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
+1. **Include the Script Updater**: Add the `update_manager.py` script to your project, or something similar, that can perform the same function, that is, you can make your own scprit in other languages ​​if you prefer, as long as you keep the `config.ini` with the same format and `Kalymos-Updater.exe` is executed at the end. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
 2. **Load Configuration**: Use `load_config` to read the `config.ini` file and get the current updater version.
 3. **Check and Ensure Updater**: to check for updates and ensure the updater executable is present. `Set skip_update_check=True` if you want to prevent the Kalymos Updater from checking for updates itself. This means that the updater will not look for new versions of itself, but it will still ensure that the updater executable exists and is up-to-date for the main application to receive updates.
 
