@@ -1,5 +1,3 @@
----
-
 # Kalymos Updater
 
 ## Overview
@@ -48,11 +46,27 @@ main_executable = kalymos.exe
 updater_version = v1.1.0
 ```
 
+### Handling the `--updated` Argument
+
+When running the demo application or your application, you can use the `--updated` argument to skip the update checks. Here's how this affects the demo app's behavior:
+
+- **Without `--updated` Argument**: The demo app or your app will check for updates for Kalymos Updater and the main app. If updates are needed, it will notify the user and stop running until the updater runs and the application is restarted.
+
+- **With `--updated` Argument**: The demo application or your app will skip the update checks for both the Kalymos Updater and the main application. This argument indicates that the application has already been updated, or that the update was canceled. The application will proceed without performing any update checks.
+
+To run the demo application with the `--updated` argument, use the following command:
+
+```bash
+python demo_app.py --updated
+```
+
+This argument is used by the Kalymos Updater to signal to the main application whether the update has already occurred or if the update process was canceled. You can modify this logic as needed to suit different use cases.
+
 ## Integration with Other Applications
 
 To integrate the Kalymos Updater into your application:
 
-1. **Include the Updater Script**: Add the `update_manager.py` script to your project. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
+1. **Include the Script Updater**: Add the `update_manager.py` script to your project, or something similar, that can perform the same function, that is, you can make your own scprit in other languages ​​if you prefer, as long as you keep the `config.ini` with the same format and `Kalymos-Updater.exe` is executed at the end. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
 2. **Load Configuration**: Use `load_config` to read the `config.ini` file and get the current updater version.
 3. **Check and Ensure Updater**: to check for updates and ensure the updater executable is present. `Set skip_update_check=True` if you want to prevent the Kalymos Updater from checking for updates itself. This means that the updater will not look for new versions of itself, but it will still ensure that the updater executable exists and is up-to-date for the main application to receive updates.
 
@@ -62,6 +76,7 @@ Here’s a basic example of integrating the updater into your application:
 
 ```python
 import configparser
+import argparse
 from update_manager import load_config, ensure_updater
 
 def run_my_app():
@@ -77,23 +92,31 @@ def run_my_app():
     ini_file = 'config.ini'
     
     try:
-        updater_version = load_config(ini_file)
+        updater_version, version = load_config(ini_file)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return
     
-    # Set this to True to skip the update check for the Kalymos Updater itself
-    skip_update_check = False
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='My Application')
+    parser.add_argument('--updated', action='store_true', help='Indicates that the application has been updated.')
+    args = parser.parse_args()
     
-    # Ensure the updater is present and up-to-date
-    ensure_updater(updater_version, skip_update_check=skip_update_check)
+    # Check if the --updated argument is passed
+    if not args.updated:
+        # Skip update check if --updated is not passed
+        updater_needed = ensure_updater(updater_version, skip_update_check=False)
+        
+        if updater_needed:
+            # Notify the user that an update is needed and stop further execution
+            print("Updater needed. Please restart the application after the updater has run.")
+            return  # Stop further execution
     
     # Launch your main application here
     print("Launching the main application...")
 
 if __name__ == '__main__':
     run_my_app()
-
 ```
 
 ### Note
@@ -111,5 +134,3 @@ The Kalymos Updater is licensed under a custom license with the following key po
 - **Personal Use**: Allowed for personal projects. For use in commercial software, explicit written permission is required.
 
 For the full license terms, please refer to the [LICENSE](LICENSE) file.
-
----
