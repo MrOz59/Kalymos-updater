@@ -1,44 +1,98 @@
 import os
 import sys
+import winreg
 import requests
-import subprocess
-import configparser
 import ctypes
+from packaging import version
+import logging
 
-def load_config(ini_file):
-    """
-    Loads the configuration from the ini file.
-    Returns:
-        tuple: (updater_version, version)
-    """
-    if not os.path.exists(ini_file):
-        raise FileNotFoundError(f"Configuration file '{ini_file}' not found.")
+logging.basicConfig(level=logging.INFO)
+
+def load_config():
+    env_vars = ['Updater', 'SkipUpdate', 'Repo', 'Owner']
+    loaded_vars = {}
     
-    config = configparser.ConfigParser()
-    config.read(ini_file)
-    updater_version = config['config']['updater_version'].lstrip('v')
-    version = config['config']['version']
-    return updater_version, version
+    for var in env_vars:
+        value = os.environ.get(var)
+        if value is not None:
+            if value == 'False':
+                value = False
+            elif value == 'True':
+                value = True
+            loaded_vars[var] = value
+            logging.info(f"{var} loaded with value: {value}")
+        else:
+            logging.info(f"{var} is not set.")
+    
+    return loaded_vars
 
-def update_config(ini_file, updater_version):
+def set_registry_value(key, value):
     """
-    Updates the updater_version in the config file.
-    """
-    config = configparser.ConfigParser()
-    config.read(ini_file)
-    config['config']['updater_version'] = 'v' + updater_version  # Re-add 'v' to match format
+    Sets a string value in the Windows registry.
 
-    with open(ini_file, 'w') as configfile:
-        config.write(configfile)
-    print(f"Updated config file with new updater version: v{updater_version}")
+    Args:
+        key (str): The registry key path.
+        value (str): The value to be set.
+
+    Raises:
+        Exception: If an error occurs while setting the registry value.
+    """
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as reg_key:
+            winreg.SetValueEx(reg_key, 'Value', 0, winreg.REG_SZ, value)
+    except Exception as e:
+        logging.error(f"Error setting registry value: {e}")
+
+def get_registry_value(key):
+    """
+    Retrieves a string value from the Windows registry.
+
+    Args:
+        key (str): The registry key path.
+
+    Returns:
+        str: The value stored in the registry key, or None if the key does not exist.
+    """
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_READ) as reg_key:
+            value, _ = winreg.QueryValueEx(reg_key, 'Value')
+            return value
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logging.error(f"Error reading registry value: {e}")
+        return None
+
+def update_registry(var_name, new_value):
+    """
+    Updates the registry value if the new value is greater than the current value.
+
+    Args:
+        var_name (str): The name of the registry variable to update.
+        new_value (str): The new value to be set in the registry.
+    """
+    registry_key = r"Software\KalymosApp"
+    current_value = get_registry_value(f"{registry_key}\\{var_name}")
+    
+    if current_value is None or version.parse(current_value) < version.parse(new_value):
+        set_registry_value(f"{registry_key}\\{var_name}", new_value)
+        logging.info(f"{var_name} updated to {new_value}")
+    else:
+        logging.info(f"{var_name} remains at {current_value}")
 
 def download_updater(updater_version, filename):
     """
-    Downloads the updater executable.
-    """
-    updater_url_template = 'https://github.com/MrOz59/Kalymos-Updater/releases/download/v{version}/{filename}'
-    updater_url = updater_url_template.format(version=updater_version, filename=filename)
+    Downloads the updater executable from GitHub.
 
+    Args:
+        updater_version (str): The version of the updater to download.
+        filename (str): The filename to save the downloaded updater as.
+
+    Returns:
+        str: The version of the downloaded updater if successful, otherwise None.
+    """
+    updater_url = f'https://github.com/MrOz59/Kalymos-Updater/releases/download/{updater_version}/{filename}'
+    
     try:
         response = requests.get(updater_url, stream=True)
         response.raise_for_status()
@@ -46,153 +100,145 @@ def download_updater(updater_version, filename):
         with open(filename, 'wb') as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        print(f"Downloaded {filename}.")
-        
+        logging.info(f"Downloaded {filename}.")
         return updater_version
         
     except requests.HTTPError as e:
-        print(f"An error occurred while downloading the file: {e}")
+        logging.error(f"An error occurred while downloading the file: {e}")
         return None
 
-def check_for_updates(owner, repo, current_version):
+def check_for_updates(current_version):
     """
-    Checks the GitHub repository for a new release using the GitHub API.
+    Checks for the latest version of the updater on GitHub.
 
     Args:
         owner (str): The GitHub repository owner.
         repo (str): The GitHub repository name.
-        current_version (str): The current version of the application.
+        current_version (str): The current version of the updater.
 
     Returns:
-        str: The latest version available, or None if there is no update.
+        str: The latest version available if there is an update, otherwise None.
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
+    url = f"https://api.github.com/repos/MrOz59/kalymos-updater/releases/latest"
     
     try:
         response = requests.get(url)
         response.raise_for_status()
         
-        latest_version = response.json()['tag_name'].lstrip('v')  # Remove 'v' if present
-        
-        # Compare versions
-        if compare_versions(latest_version, current_version):
-            print(f"New version available: v{latest_version}")
+        latest_version = response.json()['tag_name']
+        if version.parse(latest_version) > version.parse(current_version):
+            logging.info(f"New version available: v{latest_version}")
             return latest_version
         else:
-            print("You are already using the latest version.")
+            logging.info("You are already using the latest version.")
             return None
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred while checking for updates: {e}")
+        logging.error(f"An error occurred while checking for updates: {e}")
         return None
     except ValueError as e:
-        print(f"Error decoding JSON response: {e}")
+        logging.error(f"Error decoding JSON response: {e}")
         return None
 
-def compare_versions(version1, version2):
+def run_as_admin(executable_name, cmd_line=None):
     """
-    Compare two version strings.
+    Runs a specified executable with administrative privileges.
 
     Args:
-        version1 (str): The first version string.
-        version2 (str): The second version string.
+        executable_name (str): The path to the executable to run.
+        cmd_line (str, optional): Command-line arguments to pass to the executable.
 
-    Returns:
-        bool: True if version1 is newer than version2, False otherwise.
-    """
-    version1_parts = list(map(int, version1.split('.')))
-    version2_parts = list(map(int, version2.split('.')))
-    
-    # Pad the shorter version with zeros
-    while len(version1_parts) < len(version2_parts):
-        version1_parts.append(0)
-    while len(version2_parts) < len(version1_parts):
-        version2_parts.append(0)
-    
-    return version1_parts > version2_parts
-
-def run_as_admin(cmd_line=None):
-    """
-    Re-run the script as an administrator.
+    Raises:
+        SystemExit: If the executable fails to run with administrative privileges.
     """
     if cmd_line is None:
-        cmd_line = ' '.join(sys.argv)
+        cmd_line = ' '.join(sys.argv[1:])
 
     try:
-        # Request administrator privileges
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, cmd_line, None, 1)
+        result = ctypes.windll.shell32.ShellExecuteW(None, "runas", executable_name, cmd_line, None, 1)
+        if result <= 32:
+            logging.error(f"Failed to run {executable_name} as admin. Error code: {result}")
+            sys.exit(1)
     except Exception as e:
-        print(f"Failed to request admin privileges: {e}")
+        logging.error(f"Failed to request admin privileges: {e}")
         sys.exit(1)
 
-def ensure_updater(updater_version, skip_update_check=False):
+def ensure_updater():
     """
-    Ensure the updater executable is present and up-to-date.
-    Downloads the updater if it is missing or out-of-date.
-    Returns:
-        bool: True if an update was needed and executed, False otherwise.
+    Ensures the updater executable is present, up-to-date, and runs it if necessary.
+    Updates registry values as needed.
     """
     updater_filename = 'kalymos-updater.exe'
-
     updater_exists = os.path.exists(updater_filename)
+    configs = load_config()
     
+    skip_update_check = configs.get('SkipUpdate', False)
+    updater_version = configs.get('Updater', '0')
+    print(f'Updater: {updater_version}')
+    repo = configs.get('Repo', '0')
+    owner = configs.get('Owner', '0')
+    current_version = configs.get('Version', '0')
+    executable = configs.get('MainExecutable', '0')
+    
+    # Set registry values
+    registry_key = r"Software\KalymosApp"
+    set_registry_value(f"{registry_key}\\Version", current_version)
+    set_registry_value(f"{registry_key}\\Owner", owner)
+    set_registry_value(f"{registry_key}\\Repo", repo)
+    set_registry_value(f"{registry_key}\\MainExecutable", executable)
+
+    # Check and use registered version for updates
+    registry_version = get_registry_value(f"{registry_key}\\Updater")
+    print(f'Registry: {registry_version}')
+    if registry_version and version.parse(registry_version) > version.parse(updater_version):
+        updater_version = registry_version
+
     if updater_exists:
         if skip_update_check:
-            print(f"{updater_filename} found. Skipping update check as per configuration.")
-            print("Running the updater...")
-            run_as_admin(f"{updater_filename}")
-            return False
+            logging.info(f"{updater_filename} found. Skipping update check as per configuration.")
         else:
-            print(f"{updater_filename} found. Checking for updates...")
-            latest_version = check_for_updates('MrOz59', 'Kalymos-Updater', updater_version)
+            logging.info(f"{updater_filename} found. Checking for updates...")
+            latest_version = check_for_updates(updater_version)
             if latest_version:
-                print("Update available. Downloading the latest version...")
+                logging.info("Update available. Downloading the latest version...")
                 new_version = download_updater(latest_version, updater_filename)
                 if new_version:
-                    update_config('config.ini', new_version)
-                    print("Running the updated updater...")
-                    run_as_admin(f"{updater_filename}")
+                    update_registry('Updater', new_version)
+                    logging.info("Running the updated updater...")
+                    run_as_admin(updater_filename)
                     return True
                 else:
-                    print("Failed to download the updater.")
+                    logging.error("Failed to download the updater.")
                     return False
             else:
-                print("Updater is up-to-date.")
+                logging.info("Updater is up-to-date.")
+                run_as_admin(updater_filename)
                 return False
     else:
-        print(f"{updater_filename} not found. Downloading...")
-
-        version_to_download = updater_version if skip_update_check else check_for_updates('MrOz59', 'Kalymos-Updater', updater_version)
+        logging.info(f"{updater_filename} not found. Downloading...")
+        if not skip_update_check:
+            version_to_download = updater_version
+        else:
+            version_to_download = check_for_updates(owner, repo, updater_version)
         
         if version_to_download:
             new_version = download_updater(version_to_download, updater_filename)
             if new_version:
-                update_config('config.ini', new_version)
-                print("Running the updater...")
-                run_as_admin(f"{updater_filename}")
+                update_registry('Updater', new_version)
+                logging.info("Running the updater...")
+                run_as_admin(updater_filename)
                 return True
             else:
-                print("Failed to download the updater.")
+                logging.error("Failed to download the updater.")
                 return False
         else:
-            print("No version available for download.")
+            logging.error("No version available for download.")
             return False
 
 def main():
     """
-    Main function to check for updates and handle the updater executable.
+    Main function to ensure the updater is up-to-date and run it if needed.
     """
-    ini_file = 'config.ini'
-    updater_version, _ = load_config(ini_file)
-
-    update_needed = ensure_updater(updater_version, skip_update_check=False)
-    if update_needed:
-        print("Updater was updated and executed.")
-    else:
-        print("No update needed or an error occurred during update.")
+    ensure_updater()
 
 if __name__ == "__main__":
-    if not ctypes.windll.shell32.IsUserAnAdmin():
-        print("Re-running as administrator...")
-        run_as_admin()
-    else:
-        main()
+    main()

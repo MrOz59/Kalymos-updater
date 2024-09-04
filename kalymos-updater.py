@@ -2,7 +2,7 @@ import configparser
 import os
 import shutil
 import hashlib
-import time
+import winreg
 import psutil
 import requests
 import zipfile
@@ -15,7 +15,7 @@ import sys
 
 def is_application_running(executable_name):
     """
-    Checks if the application is currently running.
+    Checks if the specified application is currently running.
 
     Args:
         executable_name (str): The name of the executable to check.
@@ -30,10 +30,13 @@ def is_application_running(executable_name):
 
 def close_application(executable_name):
     """
-    Closes the application if it is running.
+    Attempts to close the specified application if it is running.
 
     Args:
         executable_name (str): The name of the executable to close.
+
+    Returns:
+        bool: True if the application was successfully closed, False otherwise.
     """
     for process in psutil.process_iter(['name', 'pid']):
         if process.info['name'] == executable_name:
@@ -44,50 +47,34 @@ def close_application(executable_name):
             return True
     return False
 
-def create_base_config(ini_file):
+def load_config():
     """
-    Creates a base configuration file and notifies the user via a message box.
-
-    Args:
-        ini_file (str): The path to the configuration file to create.
-    """
-    config = configparser.ConfigParser()
-    config['config'] = {
-        'owner': '<GITHUB_OWNER>',
-        'repo': '<GITHUB_REPO>',
-        'version': '<CURRENT_VERSION>',
-        'main_executable': '<MAIN_EXECUTABLE_NAME>'
-    }
-    with open(ini_file, 'w') as configfile:
-        config.write(configfile)
-
-    # Create a Tkinter window to show a message box
-    root = tk.Tk()
-    root.withdraw()  # Hide the main Tkinter window
-    messagebox.showinfo("File not found", f"The file '{ini_file}' was not found. A base configuration file has been created for editing.")
-    root.destroy()  # Close the Tkinter window
-
-def load_config(ini_file):
-    """
-    Loads the configuration from the ini file or creates a base configuration if the file does not exist.
-
-    Args:
-        ini_file (str): The path to the configuration file.
+    Retrieves configuration values from the Windows registry and displays an error message if any value is missing.
 
     Returns:
-        tuple: A tuple containing repository owner, repository name, current version, and main executable name.
+        dict: A dictionary containing the values from the registry ('Owner', 'Repo', 'Version', 'MainExecutable').
     """
-    if not os.path.exists(ini_file):
-        create_base_config(ini_file)
-        sys.exit(1)  # Exit the program after creating the base configuration file
+    registry_key = r"Software\KalymosApp"
+    required_vars = ['Owner', 'Repo', 'Version', 'MainExecutable']
+    config = {}
 
-    config = configparser.ConfigParser()
-    config.read(ini_file)
-    owner = config['config']['owner']
-    repo = config['config']['repo']
-    current_version = config['config']['version']
-    main_executable = config['config']['main_executable']
-    return owner, repo, current_version, main_executable
+    # Attempt to retrieve values from the registry
+    for var in required_vars:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, f"{registry_key}\\{var}") as reg_key:
+                value, _ = winreg.QueryValueEx(reg_key, "Value")
+                if not value:
+                    raise FileNotFoundError
+                config[var] = value
+        except (FileNotFoundError, OSError):
+            # Show an error message if any registry key is missing or inaccessible
+            root = tk.Tk()
+            root.withdraw()  # Hide the main Tkinter window
+            messagebox.showerror("Missing Registry Key", f"The registry key for '{var}' is missing or inaccessible. Please ensure all required registry keys are set.")
+            root.destroy()  # Close the Tkinter window
+            sys.exit(1)  # Exit with an error code
+
+    return config['Owner'], config['Repo'], config['Version'], config['MainExecutable']
 
 def check_for_updates(owner, repo, current_version):
     """
@@ -137,6 +124,7 @@ def download_file(url, destination):
             for chunk in response.iter_content(1024):
                 file.write(chunk)
         print(f"Downloaded file from {url} to {destination}")
+        
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while downloading the file: {e}")
 
@@ -156,12 +144,58 @@ def calculate_sha256(file_path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
+def verify_sha256(file_path, expected_hash_path):
+    """
+    Verifies the SHA-256 hash of a file against an expected hash.
+
+    Args:
+        file_path (str): The path to the file to verify.
+        expected_hash_path (str): The path to the file containing the expected SHA-256 hash.
+
+    Returns:
+        bool: True if the file's hash matches the expected hash, False otherwise.
+    """
+    try:
+        with open(expected_hash_path, 'r') as hash_file:
+            expected_hash = hash_file.read().strip()
+        
+        file_hash = calculate_sha256(file_path)
+        if file_hash == expected_hash:
+            print(f"SHA-256 hash verified: {file_hash}")
+            return True
+        else:
+            print(f"Hash mismatch: Expected {expected_hash}, but got {file_hash}")
+            return False
+    except FileNotFoundError:
+        print("Hash file not found.")
+        return False
+    except Exception as e:
+        print(f"Error verifying SHA-256 hash: {e}")
+        return False
+
+def check_disk_space(file_size):
+    """
+    Checks if there is enough disk space available to download and extract the update.
+
+    Args:
+        file_size (int): The size of the file to be downloaded, in bytes.
+
+    Returns:
+        bool: True if there is enough disk space, False otherwise.
+    """
+    free_space = shutil.disk_usage('.').free
+    if free_space > file_size:
+        return True
+    else:
+        print("Not enough disk space available.")
+        return False
+
 def create_backup(root_folder):
     """
     Creates a backup of the current application folder as a ZIP file with the current date.
 
     Args:
-        root_folder (str): The root folder of the application to backup.
+        root_folder (str): The root folder of the application to back up.
     """
     today = datetime.now().strftime('%d-%m-%Y')
     backup_zip = os.path.join(tempfile.gettempdir(), f"backup_{today}.zip")
@@ -237,43 +271,81 @@ def prompt_for_update():
     root.destroy()  # Close the Tkinter window
     return response
 
+def update_registry_version(new_version):
+    """
+    Updates the 'Version' value in the Windows registry.
+
+    Args:
+        new_version (str): The new version to set in the registry.
+    """
+    registry_key = r"Software\KalymosApp"
+    value_name = "Version"
+
+    try:
+        # Open the registry key where the 'Version' value is stored
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry_key, 0, winreg.KEY_SET_VALUE) as reg_key:
+            # Update the 'Version' value
+            winreg.SetValueEx(reg_key, value_name, 0, winreg.REG_SZ, new_version)
+            print(f"Successfully updated {value_name} to {new_version} in the registry.")
+    
+    except FileNotFoundError:
+        print(f"Registry key {registry_key} not found.")
+    except PermissionError:
+        print("Permission denied. Please run the script with administrator privileges.")
+    except Exception as e:
+        print(f"An error occurred while updating the registry: {e}")
+
 def main():
     """
     Main function to check for updates, download and verify them, and replace the current version with the updated one.
     """
-    # Path to the configuration file
-    ini_file = 'config.ini'
-    owner, repo, current_version, main_executable = load_config(ini_file)
-
+    owner, repo, current_version, main_executable = load_config()
+    print(main_executable)
     # Check for updates
     latest_version = check_for_updates(owner, repo, current_version)
     if not latest_version:
+        launch_application(main_executable, False)
         sys.exit(0)
 
-    # Confirm with user
+    # Confirm with user if they want to update
     if not prompt_for_update():
         print("Update cancelled.")
-        launch_application(main_executable, True)
+        launch_application(main_executable, False)
         sys.exit(0)
 
     # Close application if running
     if is_application_running(main_executable):
         close_application(main_executable)
 
-    # Create backup
+    # Create a backup of the current application
     create_backup('.')
 
-    # Download the update
+    # Prepare to download the update
     download_url = f"https://github.com/{owner}/{repo}/releases/download/{latest_version}/update.zip"
     update_zip_path = os.path.join('.', 'update.zip')
+    
+    # Check disk space before downloading
+    file_size = int(requests.head(download_url).headers.get('content-length', 0))
+    if not check_disk_space(file_size):
+        print("Not enough disk space. Exiting update.")
+        sys.exit(1)
+
+    # Download the update
     download_file(download_url, update_zip_path)
+
+    # Verify the downloaded file's SHA-256 hash
+    if not verify_sha256(update_zip_path, 'update.zip.sha256'):
+        print("SHA-256 hash verification failed. Exiting update.")
+        sys.exit(1)
 
     # Extract the update to the root folder
     extract_zip_file(update_zip_path, '.')
 
-    # Launch the application with --updated argument
-    launch_application(main_executable, True)
+    # Update registry with the new version
+    update_registry_version(latest_version)
 
+    # Launch the updated application
+    launch_application(main_executable, True)
 
 if __name__ == '__main__':
     main()
