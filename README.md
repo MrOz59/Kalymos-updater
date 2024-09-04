@@ -1,3 +1,5 @@
+---
+
 # Kalymos Updater
 
 ## Overview
@@ -17,34 +19,33 @@ The Kalymos Updater is designed to manage updates for applications. It handles c
 - **Update ZIP**: The new version of the main app should be posted as `update.zip`.
 - **SHA-256 Checksum**: The `update.zip.sha256` file contains the SHA-256 hash of the `update.zip` to verify its integrity.
 
-## Demo Application
+## Changes Made
 
-### Purpose
+### 1. **Registry Management Improvements**
 
-The demo application shows how to integrate the Kalymos Updater into another project. It demonstrates how to:
+- **What’s New**: The updater now retrieves configuration values directly from the Windows registry instead of the previous `config.ini` file. This includes the application version, owner, repository, and executable details.
+- **Purpose**: Centralizes application settings in the Windows registry for better management and deployment. This change simplifies configuration by removing the need for a separate `config.ini` file.
 
-1. Retrieve the updater version from `config.ini`.
-2. Check for updates to the updater.
-3. Download the updater if it’s missing or out-of-date.
-4. Launch the updater to perform the update.
+### 2. **Update Verification Enhancements**
 
-### How to Run
+- **SHA-256 Check**:
+  - **What’s New**: Added functionality to verify the integrity of the update file using SHA-256 checksums. The script now calculates the SHA-256 hash of the downloaded update and compares it with the hash provided in `update.zip.sha256`.
+  - **Purpose**: Ensures that the downloaded update file has not been tampered with or corrupted, improving security and reliability.
 
-1. Ensure you have a `config.ini` file with the correct configuration.
-2. Run the demo application script: `python demo_app.py`.
+- **Disk Space Verification**:
+  - **What’s New**: Implemented a check to ensure there is sufficient disk space available before applying the update.
+  - **Purpose**: Prevents update failures due to insufficient disk space, ensuring a smoother update process.
 
-### Configuration
+### 3. **Backup Creation**
 
-The `config.ini` file should be structured as follows:
+- **What’s New**: Added a backup creation step that compresses the current application folder into a ZIP file before applying the update.
+- **Purpose**: Provides a recovery option if something goes wrong during the update process, allowing users to restore their application to its previous state.
 
-```ini
-[config]
-owner = MrOz59
-repo = kalymos
-version = v1.4.1
-main_executable = kalymos.exe
-updater_version = v1.1.0
-```
+### 4. **Update Confirmation**
+
+- **What’s New**: Added a prompt to confirm with the user whether they want to proceed with the update.
+- **Purpose**: Gives users control over when to apply updates, allowing them to choose the best time for the update to occur.
+
 
 ### Handling the `--updated` Argument
 
@@ -54,49 +55,41 @@ When running the demo application or your application, you can use the `--update
 
 - **With `--updated` Argument**: The demo application or your app will skip the update checks for both the Kalymos Updater and the main application. This argument indicates that the application has already been updated, or that the update was canceled. The application will proceed without performing any update checks.
 
-To run the demo application with the `--updated` argument, use the following command:
-
-```bash
-python demo_app.py --updated
-```
-
 This argument is used by the Kalymos Updater to signal to the main application whether the update has already occurred or if the update process was canceled. You can modify this logic as needed to suit different use cases.
 
 ## Integration with Other Applications
 
 To integrate the Kalymos Updater into your application:
 
-1. **Include the Script Updater**: Add the `update_manager.py` script to your project, or something similar, that can perform the same function, that is, you can make your own scprit in other languages ​​if you prefer, as long as you keep the `config.ini` with the same format and `Kalymos-Updater.exe` is executed at the end. This script is separate from `kalymos-updater.exe` and must be part of the application being updated.
-2. **Load Configuration**: Use `load_config` to read the `config.ini` file and get the current updater version.
-3. **Check and Ensure Updater**: to check for updates and ensure the updater executable is present. `Set skip_update_check=True` if you want to prevent the Kalymos Updater from checking for updates itself. This means that the updater will not look for new versions of itself, but it will still ensure that the updater executable exists and is up-to-date for the main application to receive updates.
+1. **Include the Script Updater**: Add the `update_manager.py` script to your project. This script can be replaced with a similar script in another language if preferred, as long as it maintains the same functionality. Ensure the updater executable is called appropriately.
+2. **Load Configuration**: Retrieve configuration values from the Windows registry instead of `config.ini`.
+3. **Check and Ensure Updater**: Check for updates and ensure the updater executable is present. Set `skip_update_check=True` if you want to prevent the Kalymos Updater from checking for updates itself. This ensures the updater executable is up-to-date for the main application.
 
 ### Example Integration
 
 Here’s a basic example of integrating the updater into your application:
 
 ```python
-import configparser
 import argparse
-from update_manager import load_config, ensure_updater
+from update_manager import ensure_updater
 
 def run_my_app():
     """
     Runs the main application and integrates the Kalymos Updater.
 
     This function performs the following steps:
-    1. Loads the configuration from 'config.ini' to get the updater version.
+    1. Loads the configuration from the Windows registry to get the updater version.
     2. Ensures the Kalymos Updater is present and up-to-date.
     3. Launches the main application.
     """
-    # Path to the configuration file
-    ini_file = 'config.ini'
-    
-    try:
-        updater_version, version = load_config(ini_file)
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return
-    
+    version = 'v1.5.4'
+    os.environ['Version'] = version
+    os.environ['SkipUpdate'] = 'False' #Only affects de updater
+    os.environ['Updater'] = 'v1.1.1'
+    os.environ['Owner'] = 'MrOz59'
+    os.environ['Repo'] = 'kalymos'
+    os.environ['MainExecutable'] = 'Kalymos.exe'
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='My Application')
     parser.add_argument('--updated', action='store_true', help='Indicates that the application has been updated.')
@@ -105,7 +98,7 @@ def run_my_app():
     # Check if the --updated argument is passed
     if not args.updated:
         # Skip update check if --updated is not passed
-        updater_needed = ensure_updater(updater_version, skip_update_check=False)
+        updater_needed = ensure_updater()
         
         if updater_needed:
             # Notify the user that an update is needed and stop further execution
@@ -134,3 +127,5 @@ The Kalymos Updater is licensed under a custom license with the following key po
 - **Personal Use**: Allowed for personal projects. For use in commercial software, explicit written permission is required.
 
 For the full license terms, please refer to the [LICENSE](LICENSE) file.
+
+---
