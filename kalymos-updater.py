@@ -2,6 +2,7 @@ import configparser
 import os
 import shutil
 import hashlib
+import time
 import winreg
 import psutil
 import requests
@@ -243,7 +244,7 @@ def replace_files(source_folder, destination_folder):
 
 def launch_application(executable, updated):
     """
-    Launches the main application executable.
+    Launches the main application executable in the same process.
 
     Args:
         executable (str): The name of the main executable to launch.
@@ -251,12 +252,14 @@ def launch_application(executable, updated):
     """
     try:
         if updated:
-            subprocess.Popen([executable, '--updated'])
+            # Passa o argumento '--updated' ao executar o aplicativo
+            os.execv(executable, [executable, '--updated'])
         else:
-            subprocess.Popen([executable])
-        print(f"Launched {executable}")
+            # Executa o aplicativo sem argumentos adicionais
+            os.execv(executable, [executable])
     except Exception as e:
         print(f"Failed to launch {executable}: {e}")
+        sys.exit(1)
 
 def prompt_for_update():
     """
@@ -282,6 +285,7 @@ def update_registry_version(new_version):
     value_name = "Version"
 
     try:
+        print(f"New version to be set: {new_version}")
         # Open the registry key where the 'Version' value is stored
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry_key, 0, winreg.KEY_SET_VALUE) as reg_key:
             # Update the 'Version' value
@@ -304,18 +308,16 @@ def main():
     # Check for updates
     latest_version = check_for_updates(owner, repo, current_version)
     if not latest_version:
-        launch_application(main_executable, False)
+        launch_application(main_executable, True)
         sys.exit(0)
 
     # Confirm with user if they want to update
     if not prompt_for_update():
         print("Update cancelled.")
-        launch_application(main_executable, False)
+        launch_application(main_executable, True)
         sys.exit(0)
-
-    # Close application if running
-    if is_application_running(main_executable):
-        close_application(main_executable)
+        
+    close_application(main_executable)
 
     # Create a backup of the current application
     create_backup('.')
@@ -336,7 +338,7 @@ def main():
     # Verify the downloaded file's SHA-256 hash
     if not verify_sha256(update_zip_path, 'update.zip.sha256'):
         print("SHA-256 hash verification failed. Exiting update.")
-        sys.exit(1)
+        
 
     # Extract the update to the root folder
     extract_zip_file(update_zip_path, '.')
